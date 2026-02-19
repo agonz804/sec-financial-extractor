@@ -63,75 +63,253 @@ def get_filings_index(cik: str, form_type: str) -> list[dict]:
 # ── XBRL concept extraction ────────────────────────────────────────────────────
 
 INCOME_STATEMENT_CONCEPTS = {
-    "Revenue": ["Revenues", "RevenueFromContractWithCustomerExcludingAssessedTax",
-                "SalesRevenueNet", "SalesRevenueGoodsNet", "RevenueFromContractWithCustomerIncludingAssessedTax"],
-    "Cost of Revenue": ["CostOfRevenue", "CostOfGoodsSold", "CostOfGoodsAndServicesSold"],
-    "Gross Profit": ["GrossProfit"],
-    "R&D Expense": ["ResearchAndDevelopmentExpense"],
-    "SG&A Expense": ["SellingGeneralAndAdministrativeExpense"],
+    # Revenue — try all common variants; many companies use one but not others
+    "Revenue": [
+        "Revenues",
+        "RevenueFromContractWithCustomerExcludingAssessedTax",
+        "RevenueFromContractWithCustomerIncludingAssessedTax",
+        "SalesRevenueNet",
+        "SalesRevenueGoodsNet",
+        "SalesRevenueServicesNet",
+        "RevenueNet",
+        "TotalRevenues",
+    ],
+    "Cost of Revenue": [
+        "CostOfRevenue",
+        "CostOfGoodsAndServicesSold",
+        "CostOfGoodsSold",
+        "CostOfServices",
+        "CostOfGoodsAndServiceExcludingDepreciationDepletionAndAmortization",
+    ],
+    "Gross Profit": ["GrossProfit"],  # calculated as fallback if blank
+    "Amortization of Intangibles": [
+        "AmortizationOfIntangibleAssets",
+        "AmortizationOfAcquiredIntangibleAssets",
+    ],
+    "R&D Expense": [
+        "ResearchAndDevelopmentExpense",
+        "ResearchAndDevelopmentExpenseExcludingAcquiredInProcessCost",
+    ],
+    "SG&A Expense": [
+        "SellingGeneralAndAdministrativeExpense",
+        "GeneralAndAdministrativeExpense",
+        "SellingAndMarketingExpense",
+    ],
+    "Other Operating Expense": [
+        "OtherOperatingIncomeExpenseNet",
+        "OtherCostAndExpenseOperating",
+        "RestructuringCharges",
+        "ImpairmentOfIntangibleAssetsExcludingGoodwill",
+        "GoodwillImpairmentLoss",
+    ],
     "Operating Income": ["OperatingIncomeLoss"],
-    "Interest Expense": ["InterestExpense", "InterestAndDebtExpense"],
-    "Interest Income": ["InterestIncomeOperating", "InvestmentIncomeInterest"],
-    "Pretax Income": ["IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest"],
+    "Interest Expense": [
+        "InterestExpense",
+        "InterestAndDebtExpense",
+        "InterestExpenseDebt",
+    ],
+    "Interest & Investment Income": [
+        "InvestmentIncomeNonoperating",
+        "InvestmentIncomeInterest",
+        "InterestIncomeOperating",
+        "NonoperatingIncomeExpense",
+        "OtherNonoperatingIncomeExpense",
+        "OtherNonoperatingIncome",
+    ],
+    "Pretax Income": [
+        "IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest",
+        "IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments",
+    ],
     "Income Tax": ["IncomeTaxExpenseBenefit"],
-    "Net Income": ["NetIncomeLoss", "ProfitLoss"],
+    "Net Income": ["NetIncomeLoss", "ProfitLoss", "NetIncomeLossAvailableToCommonStockholdersBasic"],
     "EPS Basic": ["EarningsPerShareBasic"],
     "EPS Diluted": ["EarningsPerShareDiluted"],
-    "Shares Basic": ["CommonStockSharesOutstanding", "WeightedAverageNumberOfSharesOutstandingBasic"],
+    "Shares Basic": ["WeightedAverageNumberOfSharesOutstandingBasic", "CommonStockSharesOutstanding"],
     "Shares Diluted": ["WeightedAverageNumberOfDilutedSharesOutstanding"],
-    "Depreciation & Amortization": ["DepreciationDepletionAndAmortization", "DepreciationAndAmortization"],
-    "EBITDA (calc)": [],  # calculated
+    "Depreciation & Amortization": [
+        "DepreciationDepletionAndAmortization",
+        "DepreciationAndAmortization",
+        "Depreciation",
+    ],
+    "EBITDA (calc)": [],
 }
 
 BALANCE_SHEET_CONCEPTS = {
-    "Cash & Equivalents": ["CashAndCashEquivalentsAtCarryingValue"],
-    "Short-term Investments": ["ShortTermInvestments", "MarketableSecuritiesCurrent"],
-    "Accounts Receivable": ["AccountsReceivableNetCurrent"],
-    "Inventory": ["InventoryNet"],
-    "Other Current Assets": ["OtherAssetsCurrent"],
+    "Cash & Equivalents": [
+        "CashAndCashEquivalentsAtCarryingValue",
+        "CashCashEquivalentsAndShortTermInvestments",
+        "Cash",
+    ],
+    "Short-term Investments": [
+        "AvailableForSaleSecuritiesDebtSecuritiesCurrent",
+        "ShortTermInvestments",
+        "MarketableSecuritiesCurrent",
+        "AvailableForSaleSecuritiesCurrent",
+    ],
+    "Accounts Receivable": [
+        "AccountsReceivableNetCurrent",
+        "ReceivablesNetCurrent",
+    ],
+    "Inventory": ["InventoryNet", "InventoryGross"],
+    "Other Current Assets": [
+        "OtherAssetsCurrent",
+        "PrepaidExpenseAndOtherAssetsCurrent",
+        "PrepaidExpenseCurrent",
+    ],
     "Total Current Assets": ["AssetsCurrent"],
     "PP&E Net": ["PropertyPlantAndEquipmentNet"],
     "Goodwill": ["Goodwill"],
-    "Intangible Assets": ["IntangibleAssetsNetExcludingGoodwill", "FiniteLivedIntangibleAssetsNet"],
-    "Other Long-term Assets": ["OtherAssetsNoncurrent"],
+    "Intangible Assets": [
+        "IntangibleAssetsNetExcludingGoodwill",
+        "FiniteLivedIntangibleAssetsNet",
+        "IndefiniteLivedIntangibleAssetsExcludingGoodwill",
+    ],
+    "Long-term Investments": [
+        "AvailableForSaleSecuritiesDebtSecuritiesNoncurrent",
+        "LongTermInvestments",
+        "MarketableSecuritiesNoncurrent",
+    ],
+    "Other Long-term Assets": [
+        "OtherAssetsNoncurrent",
+        "DeferredIncomeTaxAssetsNet",
+    ],
     "Total Assets": ["Assets"],
     "Accounts Payable": ["AccountsPayableCurrent"],
-    "Short-term Debt": ["ShortTermBorrowings", "LongTermDebtCurrent", "DebtCurrent"],
-    "Deferred Revenue Current": ["DeferredRevenueCurrent", "ContractWithCustomerLiabilityCurrent"],
+    "Accrued Liabilities": [
+        "AccruedLiabilitiesCurrent",
+        "EmployeeRelatedLiabilitiesCurrent",
+        "AccruedEmployeeBenefitsCurrent",
+    ],
+    "Short-term Debt": [
+        "ShortTermBorrowings",
+        "LongTermDebtCurrent",
+        "DebtCurrent",
+        "ConvertibleNotesPayableCurrent",
+        "NotesPayableCurrent",
+    ],
+    "Deferred Revenue Current": [
+        "DeferredRevenueCurrent",
+        "ContractWithCustomerLiabilityCurrent",
+    ],
     "Other Current Liabilities": ["OtherLiabilitiesCurrent"],
     "Total Current Liabilities": ["LiabilitiesCurrent"],
-    "Long-term Debt": ["LongTermDebtNoncurrent", "LongTermDebt"],
-    "Deferred Revenue LT": ["DeferredRevenueNoncurrent", "ContractWithCustomerLiabilityNoncurrent"],
-    "Other Long-term Liabilities": ["OtherLiabilitiesNoncurrent"],
+    "Long-term Debt": [
+        "LongTermDebtNoncurrent",
+        "LongTermDebt",
+        "ConvertibleLongTermNotesPayable",
+        "SeniorLongTermNotes",
+        "LongTermNotesPayable",
+    ],
+    "Deferred Revenue LT": [
+        "DeferredRevenueNoncurrent",
+        "ContractWithCustomerLiabilityNoncurrent",
+    ],
+    "Other Long-term Liabilities": [
+        "OtherLiabilitiesNoncurrent",
+        "DeferredIncomeTaxLiabilitiesNet",
+    ],
     "Total Liabilities": ["Liabilities"],
-    "Common Stock & APIC": ["AdditionalPaidInCapital", "AdditionalPaidInCapitalCommonStock"],
+    "Common Stock & APIC": [
+        "AdditionalPaidInCapital",
+        "AdditionalPaidInCapitalCommonStock",
+    ],
     "Retained Earnings": ["RetainedEarningsAccumulatedDeficit"],
-    "Treasury Stock": ["TreasuryStockValue"],
-    "Total Stockholders Equity": ["StockholdersEquity", "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"],
+    "Treasury Stock": [
+        "TreasuryStockValue",
+        "TreasuryStockCommonValue",
+    ],
+    "Accumulated OCI": ["AccumulatedOtherComprehensiveIncomeLossNetOfTax"],
+    "Total Stockholders Equity": [
+        "StockholdersEquity",
+        "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
+    ],
     "Total Liabilities & Equity": ["LiabilitiesAndStockholdersEquity"],
 }
 
 CASH_FLOW_CONCEPTS = {
     "Net Income": ["NetIncomeLoss", "ProfitLoss"],
-    "D&A (CF)": ["DepreciationDepletionAndAmortization", "DepreciationAndAmortization"],
-    "Stock-Based Compensation": ["ShareBasedCompensation", "AllocatedShareBasedCompensationExpense"],
-    "Changes in Working Capital": ["IncreaseDecreaseInOperatingCapital"],
-    "Other Operating Activities": ["OtherOperatingActivitiesCashFlowStatement", "OtherNoncashIncomeExpense"],
+    "D&A (CF)": [
+        "DepreciationDepletionAndAmortization",
+        "DepreciationAndAmortization",
+        "Depreciation",
+    ],
+    "Amortization of Intangibles (CF)": [
+        "AmortizationOfIntangibleAssets",
+        "AmortizationOfAcquiredIntangibleAssets",
+    ],
+    "Stock-Based Compensation": [
+        "ShareBasedCompensation",
+        "AllocatedShareBasedCompensationExpense",
+        "ShareBasedCompensationExpense",
+    ],
+    "Deferred Income Taxes": [
+        "DeferredIncomeTaxExpenseBenefit",
+        "DeferredIncomeTaxesAndTaxCredits",
+    ],
+    "Changes in Working Capital": [
+        "IncreaseDecreaseInOperatingCapital",
+        "IncreaseDecreaseInOperatingLiabilities",
+    ],
+    "Other Operating Activities": [
+        "OtherNoncashIncomeExpense",
+        "OtherOperatingActivitiesCashFlowStatement",
+    ],
     "Cash from Operations": ["NetCashProvidedByUsedInOperatingActivities"],
     "Capex": ["PaymentsToAcquirePropertyPlantAndEquipment"],
-    "Acquisitions": ["PaymentsToAcquireBusinessesNetOfCashAcquired"],
-    "Purchases of Investments": ["PaymentsToAcquireInvestments", "PaymentsToAcquireAvailableForSaleSecurities"],
-    "Sales of Investments": ["ProceedsFromSaleOfAvailableForSaleSecurities", "ProceedsFromMaturitiesPrepaymentsAndCallsOfAvailableForSaleSecurities"],
+    "Acquisitions": [
+        "PaymentsToAcquireBusinessesNetOfCashAcquired",
+        "PaymentsToAcquireBusinessesGross",
+    ],
+    "Purchases of Investments": [
+        "PaymentsToAcquireAvailableForSaleSecurities",
+        "PaymentsToAcquireAvailableForSaleSecuritiesDebt",
+        "PaymentsToAcquireInvestments",
+        "PaymentsToAcquireMarketableSecurities",
+    ],
+    "Sales/Maturities of Investments": [
+        "ProceedsFromSaleAndMaturityOfAvailableForSaleSecurities",
+        "ProceedsFromSaleOfAvailableForSaleSecurities",
+        "ProceedsFromMaturitiesPrepaymentsAndCallsOfAvailableForSaleSecurities",
+        "ProceedsFromSaleAndMaturityOfMarketableSecurities",
+        "ProceedsFromSaleMaturityAndCollectionOfInvestments",
+    ],
     "Cash from Investing": ["NetCashProvidedByUsedInInvestingActivities"],
-    "Debt Issuance": ["ProceedsFromIssuanceOfLongTermDebt", "ProceedsFromDebtMaturingInMoreThanThreeMonths"],
-    "Debt Repayment": ["RepaymentsOfLongTermDebt", "RepaymentsOfDebtMaturingInMoreThanThreeMonths"],
-    "Share Repurchases": ["PaymentsForRepurchaseOfCommonStock"],
-    "Dividends Paid": ["PaymentsOfDividends", "PaymentsOfDividendsCommonStock"],
-    "Stock Issuance": ["ProceedsFromIssuanceOfCommonStock"],
+    "Debt Issuance": [
+        "ProceedsFromIssuanceOfLongTermDebt",
+        "ProceedsFromConvertibleDebt",
+        "ProceedsFromIssuanceOfDebt",
+        "ProceedsFromNotesPayable",
+        "ProceedsFromDebtMaturingInMoreThanThreeMonths",
+        "ProceedsFromIssuanceOfSeniorLongTermDebt",
+    ],
+    "Debt Repayment": [
+        "RepaymentsOfLongTermDebt",
+        "RepaymentsOfConvertibleDebt",
+        "RepaymentsOfDebt",
+        "RepaymentsOfNotesPayable",
+        "RepaymentsOfDebtMaturingInMoreThanThreeMonths",
+    ],
+    "Share Repurchases": [
+        "PaymentsForRepurchaseOfCommonStock",
+        "PaymentsRelatedToTaxWithholdingForShareBasedCompensation",
+    ],
+    "Dividends Paid": [
+        "PaymentsOfDividends",
+        "PaymentsOfDividendsCommonStock",
+        "PaymentsOfOrdinaryDividends",
+    ],
+    "Stock Issuance": [
+        "ProceedsFromIssuanceOfCommonStock",
+        "ProceedsFromStockOptionsExercised",
+        "ProceedsFromIssuanceOfSharesUnderIncentiveAndShareBasedCompensationPlansIncludingStockOptions",
+    ],
     "Cash from Financing": ["NetCashProvidedByUsedInFinancingActivities"],
-    "Net Change in Cash": ["CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalentsPeriodIncreaseDecreaseIncludingExchangeRateEffect",
-                           "CashAndCashEquivalentsPeriodIncreaseDecrease"],
-    "Free Cash Flow (calc)": [],  # calculated
+    "Net Change in Cash": [
+        "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalentsPeriodIncreaseDecreaseIncludingExchangeRateEffect",
+        "CashAndCashEquivalentsPeriodIncreaseDecrease",
+        "NetCashProvidedByUsedInContinuingOperations",
+    ],
+    "Free Cash Flow (calc)": [],
 }
 
 
@@ -196,16 +374,50 @@ def fetch_filing_html(cik: str, accession: str, primary_doc: str) -> str | None:
     return None
 
 
+# Patterns that indicate a table is garbage (nav, legal boilerplate, exhibit lists)
+JUNK_TABLE_PATTERNS = re.compile(
+    r"table of contents|exhibit index|incorporated herein by reference|"
+    r"certification of chief|pursuant to rule 13a|pursuant to section 906|"
+    r"instance document|taxonomy extension|inline xbrl|"
+    r"ernst.*young|deloitte|kpmg|pricewaterhousecoopers|/s/ |"
+    r"trading arrangement|rule 10b5|shares to be sold|expiration date|"
+    r"accounting standard|fasb issued|asc 842|adoption method|"
+    r"bylaws|certificate of incorporation|indenture.*trustee",
+    re.IGNORECASE
+)
+
+# A table is useful if it has numeric data and looks like financial/operational content
+def is_useful_table(df: pd.DataFrame) -> bool:
+    if df.shape[0] < 3 or df.shape[1] < 2:
+        return False
+    # Check for junk content in first few cells
+    sample_text = " ".join(str(v) for v in df.iloc[:3].values.flatten() if v)
+    if JUNK_TABLE_PATTERNS.search(sample_text):
+        return False
+    # Must have at least some numeric-looking content
+    all_text = " ".join(str(v) for v in df.values.flatten() if v)
+    has_numbers = bool(re.search(r"\d{2,}", all_text))
+    # Must have meaningful column count (not single-column prose)
+    if df.shape[1] < 2:
+        return False
+    # Reject if >80% of cells are empty
+    non_empty = sum(1 for v in df.values.flatten() if str(v).strip() not in ("", "nan", "None"))
+    if non_empty / max(df.size, 1) < 0.15:
+        return False
+    return has_numbers
+
+
 def extract_tables_from_html(html: str, keywords: list[str]) -> list[pd.DataFrame]:
-    """Find HTML tables near keyword matches."""
+    """Find HTML tables near keyword matches, with strict quality filtering."""
     soup = BeautifulSoup(html, "html.parser")
     results = []
+    seen_content = set()
     for kw in keywords:
-        pattern = re.compile(kw, re.IGNORECASE)
+        pattern = re.compile(r"\b" + re.escape(kw) + r"\b", re.IGNORECASE)
         matches = soup.find_all(string=pattern)
-        for match in matches[:3]:
+        for match in matches[:5]:
             parent = match.parent
-            for _ in range(6):
+            for _ in range(8):
                 if parent is None:
                     break
                 table = parent.find_next("table")
@@ -214,7 +426,12 @@ def extract_tables_from_html(html: str, keywords: list[str]) -> list[pd.DataFram
                         dfs = pd.read_html(str(table))
                         if dfs:
                             df = dfs[0]
-                            if df.shape[1] >= 2 and df.shape[0] >= 2:
+                            # Deduplicate by content fingerprint
+                            fp = str(df.values.tolist())[:300]
+                            if fp in seen_content:
+                                break
+                            seen_content.add(fp)
+                            if is_useful_table(df):
                                 results.append(df)
                     except Exception:
                         pass
@@ -391,13 +608,33 @@ def build_statements(facts: dict, concept_map: dict, is_annual: bool, years: int
         cutoff = str((pd.Timestamp.now() - pd.DateOffset(years=years)).date())
         sorted_periods = [p for p in sorted_periods if p >= cutoff]
 
-    # Calculate EBITDA and FCF
+    # Calculate Gross Profit as fallback if not directly filed
+    if "Gross Profit" in built:
+        gp = built["Gross Profit"]
+        if not any(v is not None for v in gp.values()):
+            rev = built.get("Revenue", {})
+            cogs = built.get("Cost of Revenue", {})
+            built["Gross Profit"] = {
+                p: round((rev.get(p) or 0) - (cogs.get(p) or 0), 3)
+                for p in sorted_periods
+                if rev.get(p) is not None and cogs.get(p) is not None
+            }
+
+    # Calculate EBITDA — add back D&A plus amortization of intangibles
     if "EBITDA (calc)" in built:
         op = built.get("Operating Income", {})
         da = built.get("Depreciation & Amortization", {})
-        built["EBITDA (calc)"] = {p: round((op.get(p) or 0) + (da.get(p) or 0), 3)
-                                   for p in sorted_periods
-                                   if op.get(p) is not None and da.get(p) is not None}
+        amort = built.get("Amortization of Intangibles", {})
+        ebitda = {}
+        for p in sorted_periods:
+            op_val = op.get(p)
+            if op_val is None:
+                continue
+            da_val = da.get(p) or 0
+            amort_val = amort.get(p) or 0
+            ebitda[p] = round(op_val + da_val + amort_val, 3)
+        built["EBITDA (calc)"] = ebitda
+
     if "Free Cash Flow (calc)" in built:
         cfo = built.get("Cash from Operations", {})
         capex = built.get("Capex", {})
@@ -411,21 +648,20 @@ def build_statements(facts: dict, concept_map: dict, is_annual: bool, years: int
 
 
 def group_statements(built: dict, is_income: bool = False, is_balance: bool = False, is_cf: bool = False) -> dict:
+    per_share_keys = ["EPS Basic", "EPS Diluted", "Shares Basic", "Shares Diluted"]
     if is_income:
         return {
-            "Income Statement ($MM)": {k: v for k, v in built.items()
-                                        if k not in ["EPS Basic", "EPS Diluted", "Shares Basic", "Shares Diluted"]},
-            "Per Share Data (EPS in $, Shares in MM)": {k: v for k, v in built.items()
-                                if k in ["EPS Basic", "EPS Diluted", "Shares Basic", "Shares Diluted"]},
+            "Income Statement ($MM)": {k: v for k, v in built.items() if k not in per_share_keys},
+            "Per Share Data (EPS in $, Shares in MM)": {k: v for k, v in built.items() if k in per_share_keys},
         }
     if is_balance:
         assets = ["Cash & Equivalents", "Short-term Investments", "Accounts Receivable", "Inventory",
                   "Other Current Assets", "Total Current Assets", "PP&E Net", "Goodwill",
-                  "Intangible Assets", "Other Long-term Assets", "Total Assets"]
-        liab = ["Accounts Payable", "Short-term Debt", "Deferred Revenue Current", "Other Current Liabilities",
-                "Total Current Liabilities", "Long-term Debt", "Deferred Revenue LT",
-                "Other Long-term Liabilities", "Total Liabilities"]
-        eq = ["Common Stock & APIC", "Retained Earnings", "Treasury Stock",
+                  "Intangible Assets", "Long-term Investments", "Other Long-term Assets", "Total Assets"]
+        liab = ["Accounts Payable", "Accrued Liabilities", "Short-term Debt", "Deferred Revenue Current",
+                "Other Current Liabilities", "Total Current Liabilities", "Long-term Debt",
+                "Deferred Revenue LT", "Other Long-term Liabilities", "Total Liabilities"]
+        eq = ["Common Stock & APIC", "Retained Earnings", "Treasury Stock", "Accumulated OCI",
               "Total Stockholders Equity", "Total Liabilities & Equity"]
         return {
             "Assets ($MM)": {k: built[k] for k in assets if k in built},
@@ -433,9 +669,11 @@ def group_statements(built: dict, is_income: bool = False, is_balance: bool = Fa
             "Equity ($MM)": {k: built[k] for k in eq if k in built},
         }
     if is_cf:
-        ops = ["Net Income", "D&A (CF)", "Stock-Based Compensation", "Changes in Working Capital",
-               "Other Operating Activities", "Cash from Operations"]
-        inv = ["Capex", "Acquisitions", "Purchases of Investments", "Sales of Investments", "Cash from Investing"]
+        ops = ["Net Income", "D&A (CF)", "Amortization of Intangibles (CF)", "Stock-Based Compensation",
+               "Deferred Income Taxes", "Changes in Working Capital", "Other Operating Activities",
+               "Cash from Operations"]
+        inv = ["Capex", "Acquisitions", "Purchases of Investments", "Sales/Maturities of Investments",
+               "Cash from Investing"]
         fin = ["Debt Issuance", "Debt Repayment", "Share Repurchases", "Dividends Paid",
                "Stock Issuance", "Cash from Financing"]
         summary = ["Net Change in Cash", "Free Cash Flow (calc)"]
@@ -450,8 +688,18 @@ def group_statements(built: dict, is_income: bool = False, is_balance: bool = Fa
 
 def fetch_segment_data(cik: str, filings: list[dict], max_filings: int = 8) -> list[tuple[str, pd.DataFrame]]:
     results = []
-    keywords = ["segment", "geographic", "revenue by", "product", "customer concentration",
-                "key performance", "KPI", "subscribers", "units sold", "stores", "locations"]
+    # More targeted keywords — focus on financial/operational disclosures
+    keywords = [
+        "segment revenue", "segment information", "revenue by segment",
+        "geographic", "revenue by region", "revenue by geography",
+        "disaggregated revenue", "revenue disaggregation",
+        "customer concentration", "significant customer", "major customer",
+        "royalt", "product sales", "collaborative",
+        "subscribers", "active users", "monthly active", "annual recurring",
+        "units sold", "volume", "same.store", "comparable store",
+        "backlog", "bookings", "net revenue retention",
+        "key performance", "operating metric",
+    ]
     seen_tables = set()
     for filing in filings[:max_filings]:
         html = fetch_filing_html(cik, filing["accession"], filing["primary_doc"])
@@ -459,7 +707,7 @@ def fetch_segment_data(cik: str, filings: list[dict], max_filings: int = 8) -> l
             continue
         tables = extract_tables_from_html(html, keywords)
         for df in tables:
-            key = str(df.values.tolist())[:200]
+            key = str(df.values.tolist())[:300]
             if key in seen_tables:
                 continue
             seen_tables.add(key)
